@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import type { FC } from 'react'
 import SimpleFlange from './SimpleFlange'
 import type{ FlangeParams } from '../types'
-
+import { useMemo } from 'react'
 interface SlipOnFlangeProps extends FlangeParams {
   hubHeight?: number
   hubDiameter?: number
@@ -11,44 +11,36 @@ interface SlipOnFlangeProps extends FlangeParams {
 const SlipOnFlange: FC<SlipOnFlangeProps> = ({
   thickness = 20,
   hubHeight = 30,
-  hubDiameter = 130, // Default slightly smaller to avoid bolts
+  hubDiameter,
   innerDiameter = 100,
+  outerDiameter = 220,
   ...params
 }) => {
-  // Logic: Ensure bolts are outside the hub
-  const safeBoltCircle = Math.max(hubDiameter + 30, (params.outerDiameter || 200) * 0.75);
+  const hubDia = Math.min(Math.max(hubDiameter ?? (innerDiameter + 40), innerDiameter + 10), outerDiameter - 40)
+  const hubH = Math.max(4, hubHeight)
+  const safeBoltCircle = Math.max(hubDia + 20, params.boltCircleDiameter ?? (outerDiameter - 60))
+
+  // Create geometry and rotate it to stand along the Z-axis
+  const geometry = useMemo(() => {
+    const geo = new THREE.CylinderGeometry(hubDia / 2, hubDia / 2, hubH, 48, 1, true)
+    geo.rotateX(Math.PI / 2) // THIS FIXES THE INCLINATION
+    return geo
+  }, [hubDia, hubH])
 
   return (
     <group rotation={[-Math.PI / 2, 0, 0]}>
-      {/* 1. The Plate */}
-      <SimpleFlange 
-        {...params} 
-        thickness={thickness} 
+      <SimpleFlange
+        {...params}
+        thickness={thickness}
         innerDiameter={innerDiameter}
-        boltCircleDiameter={safeBoltCircle} 
+        outerDiameter={outerDiameter}
+        boltCircleDiameter={safeBoltCircle}
       />
 
-      {/* 2. The Hub - Positioned along the Z axis (the 'thickness' direction) */}
-      <mesh position={[0, 0, thickness + hubHeight / 2]} rotation={[0, 0, 0]}>
-        <cylinderGeometry
-          args={[
-            hubDiameter / 2, 
-            hubDiameter / 2, 
-            hubHeight, 
-            48, 
-            1, 
-            true // Makes it a hollow tube
-          ]}
-        />
-        {/* We rotate the cylinder geometry internally because THREE cylinders are Y-up */}
-        <primitive object={new THREE.CylinderGeometry(hubDiameter/2, hubDiameter/2, hubHeight, 48, 1, true).rotateX(Math.PI / 2)} attach="geometry" />
-        
-        <meshStandardMaterial 
-          metalness={0.7} 
-          roughness={0.3} 
-          color="#cccccc" 
-          side={THREE.DoubleSide} 
-        />
+      {/* Positioned at Z = thickness + half-height */}
+      <mesh position={[0, 0, thickness + hubH / 2]}>
+        <primitive object={geometry} attach="geometry" />
+        <meshStandardMaterial metalness={0.7} roughness={0.3} color="#cccccc" side={THREE.DoubleSide} />
       </mesh>
     </group>
   )
